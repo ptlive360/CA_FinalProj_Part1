@@ -147,6 +147,7 @@ void convLayerGPU(int* filt_GPU, int* inNeu_GPU, int* out_GPU_kernel, int* out_N
 
 
 	if(i < FILTNUM * (FMSIZE/3) * (FMSIZE/3)){
+		int max, tmpVal;		
 		sli = i/(FMSIZE/3)/(FMSIZE/3);
 		fmy = (i/(FMSIZE/3))%(FMSIZE/3);
 		fmx = i%(FMSIZE/3);
