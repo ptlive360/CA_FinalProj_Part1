@@ -119,7 +119,7 @@ void convLayerGPU(int* filt_GPU, int* inNeu_GPU, int* out_GPU_kernel, int* out_N
 	}
 	__syncthreads();
 		// Max Pooling with Window Size 3x3 and stride 3
-
+	/*
 	if(i == 0){
 		int max, tmpVal;
 		for(sli = 0; sli < FILTNUM; sli++){
@@ -142,6 +142,28 @@ void convLayerGPU(int* filt_GPU, int* inNeu_GPU, int* out_GPU_kernel, int* out_N
 				}
 			}
 		}
+	}
+	*/
+
+
+	if(i < FILTNUM * (FMSIZE/3) * (FMSIZE/3)){
+		sli = i/(FMSIZE/3)/(FMSIZE/3);
+		fmy = (i/(FMSIZE/3))%(FMSIZE/3);
+		fmx = i%(FMSIZE/3);
+		outNeuIdx = sli*fmArea + fmy*3*FMSIZE + fmx*3;
+		max = out_Neu_kernel[outNeuIdx];
+		for(y = 0; y < 3; y++){
+			for(x = 0; x < 3; x++){
+				ofmy = fmy*3 + y;
+				ofmx = fmx*3 + x;
+				outNeuIdx = sli*fmArea + ofmy*FMSIZE + ofmx;
+				tmpVal = out_Neu_kernel[outNeuIdx];	
+				if(tmpVal > max)
+					max = tmpVal;
+			}
+		}
+		outIdx = sli*outArea + fmy*FMSIZE/3 + fmx;
+		out_GPU_kernel[outIdx] = max;
 	}
 }
 /***	Implement your CUDA Kernel here	***/
