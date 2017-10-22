@@ -92,15 +92,13 @@ void convLayerGPU(int* filt_GPU, int* inNeu_GPU, int* out_GPU_kernel, int* out_N
 
 
 	if(i < FILTNUM*FMSIZE*FMSIZE){
-		//if(i<1000)
-		//	printf("Hi ^^%d\n", i);
 		sum = 0;
 		fn = i/FMSIZE/FMSIZE;
 		for(sli = 0; sli < FMDEPTH; sli++){
 			for(y = 0; y < FILTSIZE; y++){
 				for(x = 0; x < FILTSIZE; x++){
-					fmy = (i/FMSIZE)%FMSIZE;//Checked
-					fmx = i%FMSIZE;	//Checked						
+					fmy = (i/FMSIZE)%FMSIZE;
+					fmx = i%FMSIZE;						
 					ifmy = fmy - FILTSIZE / 2 + y;	
 					ifmx = fmx - FILTSIZE / 2 + x;
 					filtIdx = fn*filtVol + sli*filtArea + y*FILTSIZE + x;
@@ -119,32 +117,6 @@ void convLayerGPU(int* filt_GPU, int* inNeu_GPU, int* out_GPU_kernel, int* out_N
 	}
 	__syncthreads();
 		// Max Pooling with Window Size 3x3 and stride 3
-	/*
-	if(i == 0){
-		int max, tmpVal;
-		for(sli = 0; sli < FILTNUM; sli++){
-			for(fmy = 0; fmy < FMSIZE/3 ; fmy += 1){
-				for(fmx = 0; fmx < FMSIZE/3 ; fmx += 1){
-					outNeuIdx = sli*fmArea + fmy*3*FMSIZE + fmx*3;
-					max = out_Neu_kernel[outNeuIdx];
-					for(y = 0; y < 3; y++){
-						for(x = 0; x < 3; x++){
-							ofmy = fmy*3 + y;
-							ofmx = fmx*3 + x;
-							outNeuIdx = sli*fmArea + ofmy*FMSIZE + ofmx;
-							tmpVal = out_Neu_kernel[outNeuIdx];	
-							if(tmpVal > max)
-								max = tmpVal;
-						}
-					}
-					outIdx = sli*outArea + fmy*FMSIZE/3 + fmx;
-					out_GPU_kernel[outIdx] = max;
-				}
-			}
-		}
-	}
-	*/
-
 
 	if(i < FILTNUM * (FMSIZE/3) * (FMSIZE/3)){
 		int max, tmpVal;		
@@ -189,9 +161,7 @@ int main()
 
 	cudaMemcpy(filt_GPU, filt, FILTSIZE*FILTSIZE*FMDEPTH*FILTNUM*sizeof(int), cudaMemcpyHostToDevice);
 	cudaMemcpy(inNeu_GPU, inNeu, FMSIZE*FMSIZE*FMDEPTH*sizeof(int), cudaMemcpyHostToDevice);
-
 	/******** Added ********/
-
 
 	//Convolution by CPU                                                
 	clock_gettime(CLOCK_REALTIME, &time_begin);
@@ -227,9 +197,6 @@ int main()
 	cudaFree(filt_GPU);
 	cudaFree(inNeu_GPU);
 	/******** Added ********/
-
-
-
 
 	//release memory space
 	ending();
