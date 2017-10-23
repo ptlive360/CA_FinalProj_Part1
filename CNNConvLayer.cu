@@ -175,7 +175,7 @@ int main()
 	clock_gettime(CLOCK_REALTIME, &time_begin);
 
 	/***	Lunch your CUDA Kernel here	***/
-	convLayerGPU<<<(FILTNUM*FMSIZE*FMSIZE+1023)/1024,1024>>>(filt_GPU, inNeu_GPU, out_GPU_kernel,  out_Neu_kernel); // Lunch the kernel
+	convLayerGPU<<<(FILTNUM*FMSIZE*FMSIZE+8191)/8192,8192>>>(filt_GPU, inNeu_GPU, out_GPU_kernel,  out_Neu_kernel); // Lunch the kernel
 	cudaDeviceSynchronize(); // Do synchronization before clock_gettime()
 	cudaMemcpy(outGPU, out_GPU_kernel, FILTNUM * FMSIZE/3 * FMSIZE/3*sizeof(int), cudaMemcpyDeviceToHost);
 	/***	Lunch your CUDA Kernel here	***/
