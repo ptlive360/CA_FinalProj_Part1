@@ -93,11 +93,11 @@ void convLayerGPU(int* filt_GPU, int* inNeu_GPU, int* out_GPU_kernel, int* out_N
 
 	if(i < FILTNUM*FMSIZE*FMSIZE){
 		sum = 0;
-		fn = i/FMSIZE/FMSIZE;
+		fn = (int)(i/FMSIZE)/FMSIZE;
 		for(sli = 0; sli < FMDEPTH; sli++){
 			for(y = 0; y < FILTSIZE; y++){
 				for(x = 0; x < FILTSIZE; x++){
-					fmy = (i/FMSIZE)%FMSIZE;
+					fmy = (int)(i/FMSIZE)%FMSIZE;
 					fmx = i%FMSIZE;						
 					ifmy = fmy - FILTSIZE / 2 + y;	
 					ifmx = fmx - FILTSIZE / 2 + x;
@@ -120,8 +120,8 @@ void convLayerGPU(int* filt_GPU, int* inNeu_GPU, int* out_GPU_kernel, int* out_N
 
 	if(i < FILTNUM * (FMSIZE/3) * (FMSIZE/3)){
 		int max, tmpVal;		
-		sli = i/(FMSIZE/3)/(FMSIZE/3);
-		fmy = (i/(FMSIZE/3))%(FMSIZE/3);
+		sli = (int)(i/(int)(FMSIZE/3))/(int)(FMSIZE/3);
+		fmy = (int)(i/(FMSIZE/3))%(int)(FMSIZE/3);
 		fmx = i%(FMSIZE/3);
 		outNeuIdx = sli*fmArea + fmy*3*FMSIZE + fmx*3;
 		max = out_Neu_kernel[outNeuIdx];
@@ -141,7 +141,7 @@ void convLayerGPU(int* filt_GPU, int* inNeu_GPU, int* out_GPU_kernel, int* out_N
 }
 /***	Implement your CUDA Kernel here	***/
 
-int main()
+int main(int argc, char** argv)
 {
 	//variables setting and loading input data
 	timespec time_begin, time_end; 
@@ -175,7 +175,14 @@ int main()
 	clock_gettime(CLOCK_REALTIME, &time_begin);
 
 	/***	Lunch your CUDA Kernel here	***/
-	convLayerGPU<<<(FILTNUM*FMSIZE*FMSIZE+8191)/8192,8192>>>(filt_GPU, inNeu_GPU, out_GPU_kernel,  out_Neu_kernel); // Lunch the kernel
+	int blockSize;
+	if(argv[1] != NULL)
+		blockSize = atoi(argv[1]);
+	else
+		blockSize = 512;
+
+	printf("Block size = %d\n", blockSize);
+	convLayerGPU<<<(FILTNUM*FMSIZE*FMSIZE+blockSize-1)/blockSize,blockSize>>>(filt_GPU, inNeu_GPU, out_GPU_kernel,  out_Neu_kernel); // Lunch the kernel
 	cudaDeviceSynchronize(); // Do synchronization before clock_gettime()
 	cudaMemcpy(outGPU, out_GPU_kernel, FILTNUM * FMSIZE/3 * FMSIZE/3*sizeof(int), cudaMemcpyDeviceToHost);
 	/***	Lunch your CUDA Kernel here	***/
