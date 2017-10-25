@@ -1,4 +1,3 @@
-// This program executes a typical convolutional layer in regular CNNs.Neuron sparsity(zero ratio) is 50% and Weight sparsity is 70%.
 #include <iostream>
 #include "CNNConvLayer.h"
 using namespace std;
@@ -75,13 +74,13 @@ void convLayerCPU()
 
 /***	Implement your CUDA Kernel here	***/
 __global__
-void convLayerGPU(int* filt_GPU, int* inNeu_GPU, int* out_GPU_kernel, int* out_Neu_kernel)
+void convLayerGPU(int* filt_GPU, int* inNeu_GPU, int* out_GPU_kernel)
 {
 	
 	// declarations for bunch of indexing parameters
 	int fn, sli, fmy, fmx, y, x;
-	int ifmy, ifmx, ofmy, ofmx;
-	int filtIdx, inNeuIdx, outNeuIdx, outIdx;
+	int ifmy, ifmx;
+	int filtIdx, inNeuIdx, outIdx;
 	int filtVol  = FMDEPTH  * FILTSIZE * FILTSIZE;
 	int fmArea   = FMSIZE   * FMSIZE;
 	int filtArea = FILTSIZE * FILTSIZE;
@@ -90,14 +89,16 @@ void convLayerGPU(int* filt_GPU, int* inNeu_GPU, int* out_GPU_kernel, int* out_N
 
 	int i = blockIdx.x*blockDim.x + threadIdx.x;
 
+	if(i < outArea)
+		out_GPU_kernel[i] = 0;
 
 	if(i < FILTNUM*FMSIZE*FMSIZE){
 		sum = 0;
-		fn = (int)(i/FMSIZE)/FMSIZE;
+		fn = i/FMSIZE/FMSIZE;
 		for(sli = 0; sli < FMDEPTH; sli++){
 			for(y = 0; y < FILTSIZE; y++){
 				for(x = 0; x < FILTSIZE; x++){
-					fmy = (int)(i/FMSIZE)%FMSIZE;
+					fmy = (i/FMSIZE)%FMSIZE;
 					fmx = i%FMSIZE;						
 					ifmy = fmy - FILTSIZE / 2 + y;	
 					ifmx = fmx - FILTSIZE / 2 + x;
@@ -108,23 +109,29 @@ void convLayerGPU(int* filt_GPU, int* inNeu_GPU, int* out_GPU_kernel, int* out_N
 				}
 			}
 		}
-		
-		outNeuIdx = fn*fmArea + fmy*FMSIZE + fmx;
-		if(sum <= 0)
-			out_Neu_kernel[outNeuIdx] = 0;
-		else
-			out_Neu_kernel[outNeuIdx] = sum;
+		__syncthreads();
+		for (y = 0; y < 3; y++){
+			for (x = 0; x < 3; x++)	{
+				if (fmy % 3 == y && fmx % 3 == x){
+					outIdx = fn*fmArea + fmy/3*FMSIZE/3 + fmx/3;
+					int tmp = out_GPU_kernel[outIdx];
+					if (sum > tmp)
+						out_GPU_kernel[outIdx] = sum;
+				}
+				__syncthreads();
+			}
+		}
 	}
-	__syncthreads();
+//	__syncthreads();
 		// Max Pooling with Window Size 3x3 and stride 3
 
+/*	int max = 0;
 	if(i < FILTNUM * (FMSIZE/3) * (FMSIZE/3)){
-		int max, tmpVal;		
-		sli = (int)(i/(int)(FMSIZE/3))/(int)(FMSIZE/3);
-		fmy = (int)(i/(FMSIZE/3))%(int)(FMSIZE/3);
+		int tmpVal;		
+		sli = i/(FMSIZE/3*FMSIZE/3);
+		fmy = (i%(FMSIZE/3*FMSIZE/3))/(FMSIZE/3);
 		fmx = i%(FMSIZE/3);
 		outNeuIdx = sli*fmArea + fmy*3*FMSIZE + fmx*3;
-		max = out_Neu_kernel[outNeuIdx];
 		for(y = 0; y < 3; y++){
 			for(x = 0; x < 3; x++){
 				ofmy = fmy*3 + y;
@@ -135,13 +142,13 @@ void convLayerGPU(int* filt_GPU, int* inNeu_GPU, int* out_GPU_kernel, int* out_N
 					max = tmpVal;
 			}
 		}
-		outIdx = sli*outArea + fmy*FMSIZE/3 + fmx;
-		out_GPU_kernel[outIdx] = max;
+		out_GPU_kernel[i] = max;
 	}
+*/
 }
 /***	Implement your CUDA Kernel here	***/
 
-int main(int argc, char** argv)
+int main()
 {
 	//variables setting and loading input data
 	timespec time_begin, time_end; 
@@ -152,16 +159,7 @@ int main(int argc, char** argv)
 	int* filt_GPU;
 	int* inNeu_GPU;
 	int* out_GPU_kernel;
-	int* out_Neu_kernel;
-
-	cudaMalloc(&filt_GPU, FILTSIZE*FILTSIZE*FMDEPTH*FILTNUM*sizeof(int)); 
-	cudaMalloc(&inNeu_GPU, FMSIZE*FMSIZE*FMDEPTH*sizeof(int));
-	cudaMalloc(&out_GPU_kernel, FILTNUM * FMSIZE/3 * FMSIZE/3*sizeof(int));
-	cudaMalloc(&out_Neu_kernel, FILTNUM * FMSIZE * FMSIZE*sizeof(int));
-
-	cudaMemcpy(filt_GPU, filt, FILTSIZE*FILTSIZE*FMDEPTH*FILTNUM*sizeof(int), cudaMemcpyHostToDevice);
-	cudaMemcpy(inNeu_GPU, inNeu, FMSIZE*FMSIZE*FMDEPTH*sizeof(int), cudaMemcpyHostToDevice);
-	/******** Added ********/
+//	int* out_Neu_kernel;
 
 	//Convolution by CPU                                                
 	clock_gettime(CLOCK_REALTIME, &time_begin);
@@ -169,20 +167,18 @@ int main(int argc, char** argv)
 	clock_gettime(CLOCK_REALTIME, &time_end);
 	convLayerCPUExecTime = timespec_diff_us(time_begin, time_end);
 	cout << "CPU time for executing a typical convolutional layer = "  <<  ((float)convLayerCPUExecTime)/1000 << "ms" << endl;
-
-  
 	//Convolution by GPU   
 	clock_gettime(CLOCK_REALTIME, &time_begin);
+	cudaMalloc(&inNeu_GPU, FMSIZE*FMSIZE*FMDEPTH*sizeof(int));
+	cudaMalloc(&filt_GPU, FILTSIZE*FILTSIZE*FMDEPTH*FILTNUM*sizeof(int)); 
+	cudaMalloc(&out_GPU_kernel, FILTNUM * FMSIZE/3 * FMSIZE/3*sizeof(int));
 
+	cudaMemcpy(filt_GPU, filt, FILTSIZE*FILTSIZE*FMDEPTH*FILTNUM*sizeof(int), cudaMemcpyHostToDevice);
+	cudaMemcpy(inNeu_GPU, inNeu, FMSIZE*FMSIZE*FMDEPTH*sizeof(int), cudaMemcpyHostToDevice);
+	/******** Added ********/
 	/***	Lunch your CUDA Kernel here	***/
-	int blockSize;
-	if(argv[1] != NULL)
-		blockSize = atoi(argv[1]);
-	else
-		blockSize = 512;
-
-	printf("Block size = %d\n", blockSize);
-	convLayerGPU<<<(FILTNUM*FMSIZE*FMSIZE+blockSize-1)/blockSize,blockSize>>>(filt_GPU, inNeu_GPU, out_GPU_kernel,  out_Neu_kernel); // Lunch the kernel
+	
+	convLayerGPU<<<(FILTNUM*FMSIZE*FMSIZE+8191)/8192,8192>>>(filt_GPU, inNeu_GPU, out_GPU_kernel); // Lunch the kernel
 	cudaDeviceSynchronize(); // Do synchronization before clock_gettime()
 	cudaMemcpy(outGPU, out_GPU_kernel, FILTNUM * FMSIZE/3 * FMSIZE/3*sizeof(int), cudaMemcpyDeviceToHost);
 	/***	Lunch your CUDA Kernel here	***/
@@ -203,6 +199,7 @@ int main(int argc, char** argv)
 	/******** Added ********/
 	cudaFree(filt_GPU);
 	cudaFree(inNeu_GPU);
+	cudaFree(out_GPU_kernel);
 	/******** Added ********/
 
 	//release memory space
